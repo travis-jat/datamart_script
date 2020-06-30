@@ -13,9 +13,12 @@ from datetime import datetime
 
 # read in the csv file
 csv_file = open(sys.argv[1], 'r')
+
+#list to hold all the dates
 dater=[]
 reader = csv.reader(csv_file)
 headers_list = next(reader, None)
+
 for a in csv.reader(csv_file, delimiter=','):
     dater.append(a[0])
 
@@ -43,6 +46,7 @@ def verify_timestamp(headers_list):
 
 # Verify date FORMAT
 def verify_timestamp_format(dt_str):
+    
     last_one = dt_str[-1]
     
     if last_one == "Z" or last_one == "z":
@@ -67,6 +71,7 @@ def get_features(headers_list):
 
 #Function to add key,value pairs without overwriting existing info
 def set_key(dictionary, key, value):
+    
     if key not in dictionary:
         dictionary[key] = value
     elif type(dictionary[key]) == list:
@@ -74,6 +79,7 @@ def set_key(dictionary, key, value):
     else:
         dictionary[key] = [dictionary[key], value]
 
+# Create dictionary to add k.v of features and any associated atrributes for that feature
 def get_feature_attr(feature_list, headers_list):
     
     header_dict ={}
@@ -85,7 +91,7 @@ def get_feature_attr(feature_list, headers_list):
                  
     return header_dict
 
-#check of description
+# Check that 'description' is in the dataset for each feature
 def verify_description(header_dict):
     
     list_bool=[]
@@ -102,6 +108,7 @@ def verify_description(header_dict):
         
     return list_bool 
 
+#Put is all together
 def wrapperitup(headers_list, dater):
     
     #populate with function outputs
@@ -132,7 +139,7 @@ def wrapperitup(headers_list, dater):
     
     holder_of_meta['timestamp_format'] = all(list_date_bool)    
     
-    #  CHECK OF NAME TAG--> feature_list
+    #  CHECK FOR the NAME TAG--> feature_list
     if len(features_list) > 0:
         holder_of_meta['features_in_set'][0] = True
         holder_of_meta['features_in_set'][1] = len(features_list) 
@@ -144,19 +151,24 @@ def wrapperitup(headers_list, dater):
     
     return holder_of_meta
 
+# Displacy the results
 def displayer(holder_of_meta):
 
-    print("\r\n")
-    print("Checking your file for schema compliance..." +  "\r\n")
+    # Lists to hold the fails/good to gos
     success = []
     fail = []
+
+    print("Checking your file for schema compliance..." +  "\r\n")
     
-    # Check of features first!
+    
+    # Check if there are any features first!
     temp = holder_of_meta['features_in_set']
+    
     if temp[1] == 0:
         fail.append('Failed scan for features --> No Features found')
         fail.append('Before continuing, change your features to include a "_name" tag')
     
+    # Ok, there are features so run the rest of the verification
     else:
 
         for feat in	temp[2]:
@@ -194,17 +206,18 @@ def displayer(holder_of_meta):
             else:
                 fail.append(nope + '-->  No Description found for Feature: ' + t[0])
     
+    # Print out the results:
     if fail != []:
         print("Verification Failure(s):")
         for f in fail:
             print(f)   
-        print('\n')        
+        print('\n')    
+            
     if success != []:
         print("Verification Success:")
         for s in success:
             print(s)
         print('\n')
-
 
     if fail == []: 
         print("Congratulations, your file is schema-compliant")
