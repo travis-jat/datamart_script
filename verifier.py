@@ -12,8 +12,9 @@ import datetime
 from datetime import datetime
 
 # read in the csv file
-csv_file = open(sys.argv[1], 'r')
+#csv_file = open(sys.argv[1], 'r')
 
+csv_file = open(sys.argv[1], 'r')
 #list to hold all the dates
 dater=[]
 reader = csv.reader(csv_file)
@@ -64,7 +65,7 @@ def get_features(headers_list):
     feature_list=[]
     
     for header in headers_list:
-        if "name" in header:
+        if "_name" in header:
             feature_list.append(header.split("_name")[0])
     
     return feature_list
@@ -108,6 +109,24 @@ def verify_description(header_dict):
         
     return list_bool 
 
+# Check for and return any differences in the dateset header versus the header columns that are accounted for
+def the_accounter(headers_list):
+    
+    not_accounted_for = []
+    if verify_timestamp(headers_list) == True:
+        not_accounted_for.append("timestamp")
+    if verify_country(headers_list) == True:
+        not_accounted_for.append("country")
+    
+    # get all the feautures and attributes
+    things = get_feature_attr(get_features(headers_list), headers_list)
+    
+    for key in things:
+        for thing in things[key]:
+            not_accounted_for.append(thing)
+        
+    return (list(set(headers_list) - set(not_accounted_for)))
+
 #Put is all together
 def wrapperitup(headers_list, dater):
     
@@ -117,14 +136,17 @@ def wrapperitup(headers_list, dater):
     features_list = get_features(headers_list)
     header_dict = get_feature_attr(features_list, headers_list)
     descr_list = verify_description(header_dict)
+    diff = the_accounter(headers_list)
     
     #features_in_set => [test if any features, number of features, list of features]
     
-    holder_of_meta = {'country_in': None, 
+    holder_of_meta = {'qualifier': header_dict,
+                      'country_in': None, 
                       'timestamp_in': None, 
                       'timestamp_format': None, 
                       'features_in_set': [None,0,None], 
-                      'desc_for_feature':None}
+                      'desc_for_feature':None,
+                      'header_diff': diff}
     
     # COUNTRY CHECK --> Boolean
     holder_of_meta['country_in'] = country   
@@ -157,30 +179,50 @@ def displayer(holder_of_meta):
     # Lists to hold the fails/good to gos
     success = []
     fail = []
-
+    warn = []
+    
+    print('\n')
     print("Checking your file for schema compliance..." +  "\r\n")
     
     
     # Check if there are any features first!
     temp = holder_of_meta['features_in_set']
-    
+    temp_q = holder_of_meta['qualifier']
+
     if temp[1] == 0:
-        fail.append('Failed scan for features --> No Features found')
-        fail.append('Before continuing, change your features to include a "_name" tag')
-    
+        fail.append('Failed scan for features --> NO FEATURES FOUND')
+        fail.append('Update your feature header to include the "_name" tag')
+        fail.append('Example: change crop_price to crop_price_name')
     # Ok, there are features so run the rest of the verification
     else:
-
-        for feat in	temp[2]:
-            print(f"Found Feature: {feat}")
-
+        for key in temp_q:
+            
+            if isinstance(temp_q[key], list):
+                print(f"Found Feature: {key} with {len(temp_q[key])-1} qualifier(s)")
+                for q in temp_q[key][1:]:
+                    print(f"    Qualifier: {q}")
+            else:
+                print(f"Found Feature: {key} with ZERO qualifiers")
+                
+        print('\n')
         print(f"Found {temp[1]} total feature(s)") 	
         print(f"If you have more than {temp[1]} feature(s), verify your feature has the '_name' tag" + '\r\n')
 
-        yes = 'SUCCESS: '
-        nope = 'Failed verification ' 
-        v = " verified"
+        yes = 'Passed: '
+        nope = 'FAILED VERIFICATION ' 
+        maybe = 'WARNING '
+        v = ' verified'
 
+        schema_nulls = ['latitude', 'longitude', 'polygon', 'admin_1', 'admin_2', 'admin_3']
+
+        temp = holder_of_meta['header_diff']
+        if temp == True:
+            success.append(yes + 'header accounting' + v)
+        else:
+            for thing in temp:
+                if thing not in schema_nulls:
+                    warn.append(maybe + "--> Unrecognized column header: '" + thing + "'")  
+        
         temp = holder_of_meta['country_in']
         if temp == True:
             success.append(yes + 'country' + v)
@@ -202,30 +244,45 @@ def displayer(holder_of_meta):
         temp = holder_of_meta['desc_for_feature']
         for t in temp:
             if t[1] == True:
-                success.append("SUCCESS: Description verified for Feature: " + t[0])
+                success.append(yes +"Description verified for feature: " + t[0])
             else:
-                fail.append(nope + '-->  No Description found for Feature: ' + t[0])
+                fail.append(nope + '-->  No Description found for feature: ' + t[0])
     
-    # Print out the results:
-    if fail != []:
-        print("Verification Failure(s):")
-        for f in fail:
-            print(f)   
-        print('\n')    
-            
+    # Print out the results:  
     if success != []:
-        print("Verification Success:")
         for s in success:
             print(s)
         print('\n')
 
-    if fail == []: 
-        print("Congratulations, your file is schema-compliant")
-    else:
-        print(" Your file is NOT schema-compliant: correct the verification failures and re-run")       
+    if warn != []:
+        for w in warn:
+            print(w)
+        print('* Required column headers: feature_n_name, feature_n_description, timestamp, country')
+        print('* Optional column headers: feature_n_units, latitude, longitude, polygon, admin_1, admin_2, admin_3')
+        print('* Qualifier column headers: feature_n_<qualifier_name_here>. Example: feature = crop_price --> qualifier = crop_price_currency') 
+        
+        if fail == []:
+            print('\n')
+            print("          YOUR FILE IS NOT SCHEMA-COMPLIANT. CORRECT THE WARNINGS AND RE-RUN")
+            print('\n') 
+
+    if fail != []:
+        print('\n') 
+        for f in fail:
+            print(f)     
+
+    if fail == [] and warn == []: 
+        print("          Congratulations, your file is schema-compliant!")
+        print('\n') 
+
+    if fail != []:
+        print('\n')
+        print("          YOUR FILE IS NOT SCHEMA-COMPLIANT. CORRECT THE VERIFICATION FAILURES AND/OR WARNINGS AND RE-RUN")
+        print('\n')        
 
 
 # call functions and display results
 verification_results = wrapperitup(headers_list, dater)
 displayer(verification_results)
+
 
